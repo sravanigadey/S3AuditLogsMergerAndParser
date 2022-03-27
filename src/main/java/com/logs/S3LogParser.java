@@ -1,8 +1,6 @@
 package com.logs;
 
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -335,13 +333,79 @@ public final class S3LogParser {
                     + " bucket-london.s3.eu-west-2.amazonaws.com"
                     + " TLSv1.2";
 
+
+    //private static final String SIMPLE1 = "([a-zA-Z]|[a-zA-Z0-9])*=[^&]*";
+    //private static final String NUMBER1 = "([0-9]*)";
+
+    public static final String FS_API_CALL = "op";
+    public static final String PATH_1 = "p1";
+    public static final String PRINCIPAL = "pr";
+    public static final String UUID = "ps";
+    public static final String SPAN_ID = "id";
+    public static final String THREAD_0 = "t0";
+    public static final String FS_ID = "fs";
+    public static final String THREAD_1 = "t1";
+    public static final String TIMESTAMP = "ts";
+
+    private static String SIMPLE1(String n) {
+        //String SIMPLE2 = "[^&]*=[^&]*";
+        //String SIMPLE2 = n + "[^&]*";
+        String SIMPLE2 = "[^&]*";
+        return SIMPLE2;
+    }
+    private static String e2(String name, String pattern) {
+        return String.format("(?<%s>%s)", name, pattern);
+    }
+    private static String e1(String n, String name) {
+        return e2(name, SIMPLE1(n));
+    }
+
+    public static final String LOG_ENTRY_REGEXP1 = ""
+            + e1("op=", FS_API_CALL) + "&"
+            + e1("p1=", PATH_1) + "&"
+            + e1("pr=", PRINCIPAL) + "&"
+            + e1("ps=", UUID) + "&"
+            + e1("id=", SPAN_ID) + "&"
+            + e1("t0=", THREAD_0) + "&"
+            + e1("fs=", FS_ID) + "&"
+            + e1("t1=", THREAD_1) + "&"
+            + e1("ts=", TIMESTAMP)
+            + "";
+
+    private static final String[] GROUPS1 = {
+            FS_API_CALL,
+            PATH_1,
+            PRINCIPAL,
+            UUID,
+            SPAN_ID,
+            THREAD_0,
+            FS_ID,
+            THREAD_1,
+            TIMESTAMP
+    };
+
+    public static final List<String> AWS_LOG_REGEXP_GROUPS1 =
+            Collections.unmodifiableList(Arrays.asList(GROUPS1));
+
+    public static final Pattern LOG_ENTRY_PATTERN1 = Pattern.compile(
+            LOG_ENTRY_REGEXP1);
+
+    public static final String SAMPLE_LOG_ENTRY1 =
+                    "op=op_create"
+                    + "&p1=fork-0001/test/testParseBrokenCSVFile"
+                    + "&pr=alice"
+                    + "&ps=2eac5a04-2153-48db-896a-09bc9a2fd132"
+                    + "&id=e8ede3c7-8506-4a43-8268-fe8fcbb510a4-00000278&t0=154"
+                    + "&fs=e8ede3c7-8506-4a43-8268-fe8fcbb510a4&t1=156"
+                    + "&ts=1620905165700";
+
     public static void main(String[] args) {
-        System.out.println("Matcher pattern is " + LOG_ENTRY_PATTERN);
-        System.out.println("Log entry is " + SAMPLE_LOG_ENTRY);
+        //System.out.println("Matcher pattern is " + LOG_ENTRY_PATTERN);
+        //System.out.println("Log entry is " + SAMPLE_LOG_ENTRY);
         final Matcher matcher = LOG_ENTRY_PATTERN.matcher(SAMPLE_LOG_ENTRY);
-        System.out.println(matcher);
-        System.out.println(AWS_LOG_REGEXP_GROUPS);
-        //System.out.println(matcher.group("owner"));
+        //System.out.println(matcher);
+        //System.out.println(AWS_LOG_REGEXP_GROUPS);
+        matcher.matches();
         for (String name : AWS_LOG_REGEXP_GROUPS) {
             try {
                 final String grp = matcher.group(name);
@@ -350,5 +414,27 @@ public final class S3LogParser {
                 System.out.println(e);
             }
         }
+//        String httpReferrer = matcher.group("referrer");
+//        //System.out.println(httpReferrer);
+//        String referrer = httpReferrer.substring(httpReferrer.indexOf("?") + 1, httpReferrer.length() - 1);
+//        System.out.println(referrer);
+
+
+        //System.out.println("Matcher pattern is " + LOG_ENTRY_PATTERN1);
+        //System.out.println("Log entry is " + SAMPLE_LOG_ENTRY1);
+        final Matcher matcher1 = LOG_ENTRY_PATTERN1.matcher(SAMPLE_LOG_ENTRY1);
+        //System.out.println(matcher1);
+        //System.out.println(AWS_LOG_REGEXP_GROUPS1);
+        System.out.println(matcher1.matches());
+        for (String name : AWS_LOG_REGEXP_GROUPS1) {
+            try {
+                final String grp = matcher1.group(name);
+                System.out.println("[{" + name + "}]: '{" + grp.substring(3) + "}'");
+                //System.out.println("[{" + name + "}]: '{" + grp + "}'");
+            } catch (IllegalStateException e) {
+                System.out.println(e);
+            }
+        }
+
     }
 }
