@@ -351,6 +351,8 @@ public final class S3LogParser {
         //String SIMPLE2 = "[^&]*=[^&]*";
         //String SIMPLE2 = n + "[^&]*";
         String SIMPLE2 = "[^&]*";
+        //String SIMPLE2 = "[^&].*=(.*)";
+        //String SIMPLE2 = "[&?]"+n+"=([^=]*)";
         return SIMPLE2;
     }
     private static String e2(String name, String pattern) {
@@ -425,11 +427,21 @@ public final class S3LogParser {
         final Matcher matcher1 = LOG_ENTRY_PATTERN1.matcher(SAMPLE_LOG_ENTRY1);
         //System.out.println(matcher1);
         //System.out.println(AWS_LOG_REGEXP_GROUPS1);
-        System.out.println(matcher1.matches());
+        //System.out.println(matcher1.matches());
+        matcher1.matches();
         for (String name : AWS_LOG_REGEXP_GROUPS1) {
             try {
                 final String grp = matcher1.group(name);
-                System.out.println("[{" + name + "}]: '{" + grp.substring(3) + "}'");
+                //String pattern = "[&?]"+name+"=([^&]*)";
+//                Pattern pattern = Pattern.compile(name+"=[^=]*");
+//                //Pattern pattern = Pattern.compile("[^=]*");
+//                Matcher m = pattern.matcher(grp);
+//                System.out.println(m);
+//                System.out.println("In loop "+ m.matches());
+//                System.out.println(m.group());
+                //System.out.println("[{" + name + "}]: '{" + grp.substring(3) + "}'");
+                int idx = grp.indexOf("=") + 1;
+                System.out.println("[{" + name + "}]: '{" + grp.substring(idx) + "}'");
                 //System.out.println("[{" + name + "}]: '{" + grp + "}'");
             } catch (IllegalStateException e) {
                 System.out.println(e);
