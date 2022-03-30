@@ -1,8 +1,13 @@
 package com.logs;
 
+import java.io.File;
+import java.io.IOException;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
+import org.apache.commons.io.FileUtils;
+import org.json.*;
 
 //import org.apache.hadoop.classification.InterfaceAudience;
 //import org.apache.hadoop.classification.InterfaceStability;
@@ -333,10 +338,6 @@ public final class S3LogParser {
                     + " bucket-london.s3.eu-west-2.amazonaws.com"
                     + " TLSv1.2";
 
-
-    //private static final String SIMPLE1 = "([a-zA-Z]|[a-zA-Z0-9])*=[^&]*";
-    //private static final String NUMBER1 = "([0-9]*)";
-
     public static final String FS_API_CALL = "op";
     public static final String PATH_1 = "p1";
     public static final String PRINCIPAL = "pr";
@@ -348,11 +349,7 @@ public final class S3LogParser {
     public static final String TIMESTAMP = "ts";
 
     private static String SIMPLE1(String n) {
-        //String SIMPLE2 = "[^&]*=[^&]*";
-        //String SIMPLE2 = n + "[^&]*";
         String SIMPLE2 = "[^&]*";
-        //String SIMPLE2 = "[^&].*=(.*)";
-        //String SIMPLE2 = "[&?]"+n+"=([^=]*)";
         return SIMPLE2;
     }
     private static String e2(String name, String pattern) {
@@ -401,51 +398,52 @@ public final class S3LogParser {
                     + "&fs=e8ede3c7-8506-4a43-8268-fe8fcbb510a4&t1=156"
                     + "&ts=1620905165700";
 
-    public static void main(String[] args) {
-        //System.out.println("Matcher pattern is " + LOG_ENTRY_PATTERN);
-        //System.out.println("Log entry is " + SAMPLE_LOG_ENTRY);
+    public static void main(String[] args) throws IOException {
+        Map<String, String> mp = new HashMap<>();
+
         final Matcher matcher = LOG_ENTRY_PATTERN.matcher(SAMPLE_LOG_ENTRY);
-        //System.out.println(matcher);
-        //System.out.println(AWS_LOG_REGEXP_GROUPS);
         matcher.matches();
         for (String name : AWS_LOG_REGEXP_GROUPS) {
             try {
                 final String grp = matcher.group(name);
-                System.out.println("[{" + name + "}]: '{" + grp + "}'");
-            } catch (IllegalStateException e) {
-                System.out.println(e);
-            }
-        }
-//        String httpReferrer = matcher.group("referrer");
-//        //System.out.println(httpReferrer);
-//        String referrer = httpReferrer.substring(httpReferrer.indexOf("?") + 1, httpReferrer.length() - 1);
-//        System.out.println(referrer);
-
-
-        //System.out.println("Matcher pattern is " + LOG_ENTRY_PATTERN1);
-        //System.out.println("Log entry is " + SAMPLE_LOG_ENTRY1);
-        final Matcher matcher1 = LOG_ENTRY_PATTERN1.matcher(SAMPLE_LOG_ENTRY1);
-        //System.out.println(matcher1);
-        //System.out.println(AWS_LOG_REGEXP_GROUPS1);
-        //System.out.println(matcher1.matches());
-        matcher1.matches();
-        for (String name : AWS_LOG_REGEXP_GROUPS1) {
-            try {
-                final String grp = matcher1.group(name);
-                //String pattern = "[&?]"+name+"=([^&]*)";
-//                Pattern pattern = Pattern.compile(name+"=[^=]*");
-//                //Pattern pattern = Pattern.compile("[^=]*");
-//                Matcher m = pattern.matcher(grp);
-//                System.out.println(m);
-//                System.out.println("In loop "+ m.matches());
-//                System.out.println(m.group());
-                //System.out.println("[{" + name + "}]: '{" + grp.substring(3) + "}'");
-                int idx = grp.indexOf("=") + 1;
-                System.out.println("[{" + name + "}]: '{" + grp.substring(idx) + "}'");
+                mp.put(name, grp);
                 //System.out.println("[{" + name + "}]: '{" + grp + "}'");
             } catch (IllegalStateException e) {
                 System.out.println(e);
             }
+        }
+
+        final Matcher matcher1 = LOG_ENTRY_PATTERN1.matcher(SAMPLE_LOG_ENTRY1);
+        matcher1.matches();
+        for (String name : AWS_LOG_REGEXP_GROUPS1) {
+            try {
+                final String grp = matcher1.group(name);
+                int idx = grp.indexOf("=") + 1;
+                String value = grp.substring(idx);
+                //System.out.println("[{" + name + "}]: '{" + value + "}'");
+                mp.put(name, value);
+            } catch (IllegalStateException e) {
+                System.out.println(e);
+            }
+        }
+        System.out.println(mp);
+
+        JSONObject json =  new JSONObject(mp);
+        System.out.println( "JSON: " + json);
+
+        String jsonArrayString = "{\"fileName\": ["+json+"]}";
+        JSONObject output;
+        try {
+            output = new JSONObject(jsonArrayString);
+            JSONArray docs = output.getJSONArray("fileName");
+            File file = new File("AuditLogs.csv");
+            String csv = CDL.toString(docs);
+            FileUtils.writeStringToFile(file, csv);
+            System.out.println("Data has been successfully written to "+ file);
+            System.out.println(csv);
+        }
+        catch(Exception e) {
+            e.printStackTrace();
         }
 
     }
