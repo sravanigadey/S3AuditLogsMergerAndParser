@@ -1,0 +1,33 @@
+{
+    "type" : "record",
+    "namespace" : "S3AuditLogsMergerAndParser",
+    "name" : "AuditLog",
+    "fields" : [
+            { "name" : "turnaroundtime" , "type" : ["long", "null"] },
+            { "name" : "remoteip", "type" : "string" },
+            { "name" : "auth", "type" : "string" },
+            { "name" : "useragent", "type" : "string" },
+            { "name" : "hostid", "type" : "string" },
+            { "name" : "requesturi", "type" : "string" },
+            { "name" : "endpoint", "type" : "string" },
+            { "name" : "bytessent", "type" : ["long", "null"] },
+            { "name" : "cypher", "type" : "string" },
+            { "name" : "key", "type" : "string" },
+            { "name" : "timestamp", "type" : "string" },
+            { "name" : "awserrorcode", "type" : "string" },
+            { "name" : "owner", "type" : "string" },
+            { "name" : "requester", "type" : "string" },
+            { "name" : "objectsize", "type" : ["long", "null"] },
+            { "name" : "tail", "type" : "string" },
+            { "name" : "verb", "type" : "string" },
+            { "name" : "version", "type" : "string" },
+            { "name" : "bucket", "type" : "string" },
+            { "name" : "sigv", "type" : "string" },
+            { "name" : "referrer", "type" : "string" },
+            { "name" : "totaltime", "type" : ["long", "null"] },
+            { "name" : "requestid", "type" : "string" },
+            { "name" : "http", "type" : "string" },
+            { "name" : "tls", "type" : "string" },
+            { "name" : "referrerMap", "type" : {"type": "map", "values": "string"} }
+    ]
+}

@@ -9,6 +9,13 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.csv.CsvMapper;
 import com.fasterxml.jackson.dataformat.csv.CsvSchema;
+import org.apache.avro.Schema;
+import org.apache.avro.file.DataFileWriter;
+import org.apache.avro.generic.GenericData;
+import org.apache.avro.generic.GenericDatumWriter;
+import org.apache.avro.generic.GenericRecord;
+import org.apache.avro.io.*;
+import org.apache.log4j.Logger;
 
 /**
  * Class to help parse AWS S3 Logs.
@@ -20,10 +27,12 @@ import com.fasterxml.jackson.dataformat.csv.CsvSchema;
  * within the log entries.
  */
 
-public final class S3LogParser {
+public class S3LogParser {
 
-    private S3LogParser() {
+    public S3LogParser() {
     }
+
+    Logger LOG = Logger.getLogger(S3LogParser.class);
 
     /**
      * Simple entry: anything up to a space.
@@ -48,7 +57,6 @@ public final class S3LogParser {
      * {@value}.
      */
     private static final String QUOTED = "(-|\"[^\"]*\")";
-
 
     /**
      * An entry in the regexp.
@@ -340,19 +348,19 @@ public final class S3LogParser {
      * @param singleAuditLog this is single audit log from merged audit log file
      * @return it returns a map i.e, auditLogMap which contains key-value pairs of a single audit log
      */
-    static Map<String, String> parseAuditLog(String singleAuditLog) {
+     Map<String, String> parseAuditLog(String singleAuditLog) {
         Map<String, String> auditLogMap = new HashMap<>();
         final Matcher matcher = LOG_ENTRY_PATTERN.matcher(singleAuditLog);
-        //matcher.matches();
-        System.out.println("auditlog : " + matcher.matches());
+        matcher.matches();
+        //LOG.info("auditlog : " + matcher.matches());
         for (String key : AWS_LOG_REGEXP_GROUPS) {
             try {
                 final String value = matcher.group(key);
                 auditLogMap.put(key, value);
-                //System.out.println("[{" + name + "}]: '{" + grp + "}'");
+                //LOG.info("[{" + name + "}]: '{" + grp + "}'");
             } catch (IllegalStateException e) {
-                System.out.println("log : " + singleAuditLog);
-                System.out.println(e);
+                LOG.info("log : " + singleAuditLog);
+                LOG.info(e);
             }
         }
         return auditLogMap;
@@ -361,34 +369,34 @@ public final class S3LogParser {
     /**
      * parseReferrerHeader method helps in parsing the http referrer header which is one of the key-value pair of audit log
      * @param referrerHeader this is the http referrer header of a particular audit log
-     * @param auditLogMap contains key-value pairs of a single audit log
      * @return it returns a map i.e, auditLogMap which contains key-value pairs of audit log as well as referrer header present in it
      */
-    static Map<String, String> parseReferrerHeader(String referrerHeader, Map<String, String> auditLogMap) {
-        int indx = referrerHeader.indexOf("?");
-        String httpreferrer = referrerHeader.substring(indx + 1, referrerHeader.length() - 1);
-        int start = 0;
-        int len = httpreferrer.length();
-        while (start < len) {
-            int equals = httpreferrer.indexOf("=", start);
-            // no match : break
-            if (equals == -1) {
-                break;
-            }
-            // todo, handle equals == start
-            String key = httpreferrer.substring(start, equals);
-            int end = httpreferrer.indexOf("&", equals);
-            // or end of string
-            if (end == -1) {
-                end = len;
-            }
-            // todo, no value?
-            String value = httpreferrer.substring(equals + 1, end);
-            //System.out.println(key + ":" + value);
-            auditLogMap.put(key, value);
-            start = end + 1;
-        }
-        return auditLogMap;
+    Map<String, String> parseReferrerHeader(String referrerHeader) {
+         int indx = referrerHeader.indexOf("?");
+         String httpreferrer = referrerHeader.substring(indx + 1, referrerHeader.length() - 1);
+         int start = 0;
+         int len = httpreferrer.length();
+         Map<String, String> referrerHeaderMap = new HashMap<>();
+         while (start < len) {
+             int equals = httpreferrer.indexOf("=", start);
+             // no match : break
+             if (equals == -1) {
+                 break;
+             }
+             // todo, handle equals == start
+             String key = httpreferrer.substring(start, equals);
+             int end = httpreferrer.indexOf("&", equals);
+             // or end of string
+             if (end == -1) {
+                 end = len;
+             }
+             // todo, no value?
+             String value = httpreferrer.substring(equals + 1, end);
+             //LOG.info(key + ":" + value);
+             referrerHeaderMap.put(key, value);
+             start = end + 1;
+         }
+         return referrerHeaderMap;
     }
 
     /**
@@ -396,63 +404,134 @@ public final class S3LogParser {
      * in which all key-value pairs of all audit logs are displayed as a table
      * @throws IOException
      */
-    static void convertJsonToCsvFile() throws IOException {
-        JsonNode jsonTree = new ObjectMapper().readTree(new File("Json.json"));
-        //System.out.println(jsonTree);
+     void convertJsonToCsvFile() throws IOException {
+         JsonNode jsonTree = new ObjectMapper().readTree(new File("Json.json"));
+         //LOG.info(jsonTree);
 
-        CsvSchema.Builder csvSchemaBuilder = CsvSchema.builder();
-        //System.out.println(csvSchemaBuilder);
-        JsonNode firstObject = jsonTree.elements().next();
-        //System.out.println(firstObject);
-        firstObject.fieldNames().forEachRemaining(fieldName -> {csvSchemaBuilder.addColumn(fieldName);} );
-        CsvSchema csvSchema = csvSchemaBuilder.build().withHeader();
-        //System.out.println(csvSchema);
+         CsvSchema.Builder csvSchemaBuilder = CsvSchema.builder();
+         //LOG.info(csvSchemaBuilder);
+         JsonNode firstObject = jsonTree.elements().next();
+         //LOG.info(firstObject);
+         firstObject.fieldNames().forEachRemaining(fieldName -> {csvSchemaBuilder.addColumn(fieldName);} );
+         CsvSchema csvSchema = csvSchemaBuilder.build().withHeader();
+         //LOG.info(csvSchema);
 
-        CsvMapper csvMapper = new CsvMapper();
-        csvMapper.writerFor(JsonNode.class)
+         File csvFile = new File("CsvLogs.csv");
+         CsvMapper csvMapper = new CsvMapper();
+         csvMapper.writerFor(JsonNode.class)
                 .with(csvSchema)
-                .writeValue(new File("CsvLogs.csv"), jsonTree);
-        //System.out.println(csvMapper);
+                .writeValue(csvFile, jsonTree);
+         //LOG.info(csvMapper);
     }
 
-    public static void main() throws IOException {
-        List<HashMap<String, String>> li = new ArrayList<>();
-        File file = new File("Json.json");
-        File f = new File("AuditLogFile");
-        BufferedReader br = new BufferedReader(new FileReader(f));
-        String singleAuditLog;
-        ObjectMapper mapper = new ObjectMapper();
+    void serialize(List<HashMap<String, String>> referrerHeaderList, List<HashMap<String, String>> auditLogList) throws IOException {
+        //Instantiating the Schema.Parser class.
+        Schema schema = new Schema.Parser().parse(new File("/Users/sravani.gadey/Desktop/Workstation/S3AuditLogsMergerAndParser/src/main/java/com/logs/schema.avsc"));
+        //LOG.info("Schema: " + schema);
 
-        /**
-         * reads single audit log from merged audit log file and parse it
-         */
-        while ((singleAuditLog = br.readLine()) != null) {
-            Map<String, String> auditLogMap = parseAuditLog(singleAuditLog);
+        DatumWriter<GenericRecord> datumWriter = new GenericDatumWriter<GenericRecord>(schema);
 
-            String referrerHeader = auditLogMap.get("referrer");
-            if(referrerHeader == null || referrerHeader.equals("-")) {
-                System.out.println("Log didn't parsed : " + referrerHeader);
-                continue;
+        DataFileWriter<GenericRecord> dataFileWriter = new DataFileWriter<GenericRecord>(datumWriter);
+        File avroFile = new File("data.avro");
+        dataFileWriter.create(schema, avroFile);
+
+        ArrayList<String> longValues = new ArrayList<>(Arrays.asList("turnaroundtime", "bytessent", "objectsize", "totaltime"));
+        int count = 0;
+
+        //Insert data according to schema
+        for(Map<String,String> mp : auditLogList) {
+            //Instantiating the GenericRecord class.
+            GenericRecord e1 = new GenericData.Record(schema);
+
+            for (Map.Entry<String,String> entry : mp.entrySet()) {
+                String key = entry.getKey();
+                String value = entry.getValue().trim();
+
+                //if value == '-' and key is not in arraylist then put '-' or else '-1'
+                //if key is in arraylist of long values then parse the long value
+                //while parsing do it in try-catch block, in catch block need to log exception and set value as '-1'
+                try {
+                    if(longValues.contains(key)) {
+                        if(value.equals("-")) {
+                            e1.put(key, null);
+                        }
+                        else {
+                            e1.put(key, Long.parseLong(value));
+                        }
+                    }
+                    else {
+                        e1.put(key, value);
+                    }
+                }
+                catch (Exception e) {
+                    LOG.info("Exception : " + e);
+                    e1.put(key, null);
+                }
             }
-            System.out.println("getref : "+referrerHeader);
+            e1.put("referrerMap", referrerHeaderList.get(count));
+            dataFileWriter.append(e1);
+            count += 1;
+        }
+        dataFileWriter.close();
 
-            Map<String,String> entireAuditLogMap = parseReferrerHeader(referrerHeader, auditLogMap);
+        //LOG.info("data successfully serialized");
+    }
+
+    List<HashMap<String, String>> parseWholeAuditLog(String auditLogsFilePath) throws IOException {
+        List<HashMap<String, String>> entireAuditLogList = new ArrayList<>();
+        List<HashMap<String, String>> referrerHeaderList = new ArrayList<>();
+        List<HashMap<String, String>> auditLogList = new ArrayList<>();
+        File f = new File(auditLogsFilePath);
+
+        if(f.length() != 0) {
+            File file = new File("Json.json");
+            BufferedReader br = new BufferedReader(new FileReader(f));
+            String singleAuditLog;
+            ObjectMapper mapper = new ObjectMapper();
 
             /**
-             * adds every single map containing key-value pairs of single audit log into a list
+             * reads single audit log from merged audit log file and parse it
              */
-            li.add((HashMap<String, String>) entireAuditLogMap);
-            System.out.println("Parsed one log..........");
+            while ((singleAuditLog = br.readLine()) != null) {
+                Map<String, String> auditLogMap = parseAuditLog(singleAuditLog);
+                //LOG.info("auditLogMap : " + auditLogMap);
+
+                String referrerHeader = auditLogMap.get("referrer");
+                if (referrerHeader == null || referrerHeader.equals("-")) {
+                    //LOG.info("Log didn't parsed : " + referrerHeader);
+                    continue;
+                }
+                //LOG.info("getref : "+ referrerHeader);
+
+                Map<String, String> referrerHeaderMap = parseReferrerHeader(referrerHeader);
+                //LOG.info("referrerHeaderMap : " + referrerHeaderMap);
+                Map<String, String> entireAuditLogMap = new HashMap<>();
+                entireAuditLogMap.putAll(auditLogMap);
+                entireAuditLogMap.putAll(referrerHeaderMap);
+                //LOG.info("entireAuditLogMap : " + entireAuditLogMap);
+
+                /**
+                 * adds every single map containing key-value pairs of single audit log into a list
+                 */
+                auditLogList.add((HashMap<String, String>) auditLogMap);
+                referrerHeaderList.add((HashMap<String, String>) referrerHeaderMap);
+                entireAuditLogList.add((HashMap<String, String>) entireAuditLogMap);
+
+                //LOG.info("Parsed one log..........");
+            }
+            serialize(referrerHeaderList, auditLogList);
+
+            /**
+             * adds list into json file which helps to convert key-value pairs into csv file
+             */
+            mapper.writeValue(file, entireAuditLogList);
+
+            /**
+             * this method is used to convert the obtained json file into csv file
+             */
+            convertJsonToCsvFile();
         }
-
-        /**
-         * adds list into json file which helps to convert key-value pairs into csv file
-         */
-        mapper.writeValue(file, li);
-
-        /**
-         * this method is used to convert the obtained json file into csv file
-         */
-        convertJsonToCsvFile();
+        return entireAuditLogList;
     }
+
 }
