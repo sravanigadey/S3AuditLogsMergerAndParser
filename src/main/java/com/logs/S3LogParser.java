@@ -303,47 +303,6 @@ public class S3LogParser {
             LOG_ENTRY_REGEXP);
 
     /**
-     * A real log entry.
-     * This is derived from a real log entry on a test run.
-     * If this needs to be updated, please do it from a real log.
-     * Splitting this up across lines has a tendency to break things, so
-     * be careful making changes.
-     */
-    public static final String SAMPLE_LOG_ENTRY =
-            "183c9826b45486e485693808f38e2c4071004bf5dfd4c3ab210f0a21a4000000"
-                    + " bucket-london"
-                    + " [13/May/2021:11:26:06 +0000]"
-                    + " 109.157.171.174"
-                    + " arn:aws:iam::152813717700:user/dev"
-                    + " M7ZB7C4RTKXJKTM9"
-                    + " REST.PUT.OBJECT"
-                    + " fork-0001/test/testParseBrokenCSVFile"
-                    + " \"PUT /fork-0001/test/testParseBrokenCSVFile HTTP/1.1\""
-                    + " 200"
-                    + " -"
-                    + " -"
-                    + " 794"
-                    + " 55"
-                    + " 17"
-                    + " \"https://audit.example.org/hadoop/1/op_create/"
-                    + "e8ede3c7-8506-4a43-8268-fe8fcbb510a4-00000278/"
-                    + "?op=op_create"
-                    + "&p1=fork-0001/test/testParseBrokenCSVFile"
-                    + "&pr=alice"
-                    + "&ps=2eac5a04-2153-48db-896a-09bc9a2fd132"
-                    + "&id=e8ede3c7-8506-4a43-8268-fe8fcbb510a4-00000278&t0=154"
-                    + "&fs=e8ede3c7-8506-4a43-8268-fe8fcbb510a4&t1=156&"
-                    + "ts=1620905165700\""
-                    + " \"Hadoop 3.4.0-SNAPSHOT, java/1.8.0_282 vendor/AdoptOpenJDK\""
-                    + " -"
-                    + " TrIqtEYGWAwvu0h1N9WJKyoqM0TyHUaY+ZZBwP2yNf2qQp1Z/0="
-                    + " SigV4"
-                    + " ECDHE-RSA-AES128-GCM-SHA256"
-                    + " AuthHeader"
-                    + " bucket-london.s3.eu-west-2.amazonaws.com"
-                    + " TLSv1.2";
-
-    /**
      * parseAuditLog method helps in parsing the audit log into key-value pairs using regular expression
      * @param singleAuditLog this is single audit log from merged audit log file
      * @return it returns a map i.e, auditLogMap which contains key-value pairs of a single audit log
@@ -372,26 +331,26 @@ public class S3LogParser {
      * @return it returns a map i.e, auditLogMap which contains key-value pairs of audit log as well as referrer header present in it
      */
     Map<String, String> parseReferrerHeader(String referrerHeader) {
-         int indx = referrerHeader.indexOf("?");
-         String httpreferrer = referrerHeader.substring(indx + 1, referrerHeader.length() - 1);
+         int indexOfQuestionMark = referrerHeader.indexOf("?");
+         String httpReferrer = referrerHeader.substring(indexOfQuestionMark + 1, referrerHeader.length() - 1);
          int start = 0;
-         int len = httpreferrer.length();
+         int lengthOfReferrer = httpReferrer.length();
          Map<String, String> referrerHeaderMap = new HashMap<>();
-         while (start < len) {
-             int equals = httpreferrer.indexOf("=", start);
+         while (start < lengthOfReferrer) {
+             int equals = httpReferrer.indexOf("=", start);
              // no match : break
              if (equals == -1) {
                  break;
              }
-             // todo, handle equals == start
-             String key = httpreferrer.substring(start, equals);
-             int end = httpreferrer.indexOf("&", equals);
+
+             String key = httpReferrer.substring(start, equals);
+             int end = httpReferrer.indexOf("&", equals);
              // or end of string
              if (end == -1) {
-                 end = len;
+                 end = lengthOfReferrer;
              }
-             // todo, no value?
-             String value = httpreferrer.substring(equals + 1, end);
+
+             String value = httpReferrer.substring(equals + 1, end);
              //LOG.info(key + ":" + value);
              referrerHeaderMap.put(key, value);
              start = end + 1;
@@ -411,7 +370,7 @@ public class S3LogParser {
          CsvSchema.Builder csvSchemaBuilder = CsvSchema.builder();
          //LOG.info(csvSchemaBuilder);
          JsonNode firstObject = jsonTree.elements().next();
-         //LOG.info(firstObject);
+         LOG.info(firstObject.asText());
          firstObject.fieldNames().forEachRemaining(fieldName -> {csvSchemaBuilder.addColumn(fieldName);} );
          CsvSchema csvSchema = csvSchemaBuilder.build().withHeader();
          //LOG.info(csvSchema);
@@ -424,9 +383,17 @@ public class S3LogParser {
          //LOG.info(csvMapper);
     }
 
-    void serialize(List<HashMap<String, String>> referrerHeaderList, List<HashMap<String, String>> auditLogList) throws IOException {
-        //Instantiating the Schema.Parser class.
-        Schema schema = new Schema.Parser().parse(new File("/Users/sravani.gadey/Desktop/Workstation/S3AuditLogsMergerAndParser/src/main/java/com/logs/schema.avsc"));
+    /**
+     * convertToAvroFile method converts list of maps into avro file by serializing
+     * @param referrerHeaderList this is a list of maps which contains key-value pairs of only referrer header
+     * @param auditLogList this is a list of maps which contains key-value pairs of audit log except referrer header
+     * @throws IOException
+     */
+    void convertToAvroFile(List<HashMap<String, String>> referrerHeaderList, List<HashMap<String, String>> auditLogList) throws IOException {
+        /**
+         * Instantiating the Schema.Parser class.
+         */
+        Schema schema = new Schema.Parser().parse(new File("src/main/java/com/logs/schema.avsc"));
         //LOG.info("Schema: " + schema);
 
         DatumWriter<GenericRecord> datumWriter = new GenericDatumWriter<GenericRecord>(schema);
@@ -438,12 +405,16 @@ public class S3LogParser {
         ArrayList<String> longValues = new ArrayList<>(Arrays.asList("turnaroundtime", "bytessent", "objectsize", "totaltime"));
         int count = 0;
 
-        //Insert data according to schema
-        for(Map<String,String> mp : auditLogList) {
-            //Instantiating the GenericRecord class.
-            GenericRecord e1 = new GenericData.Record(schema);
+        /**
+         * Insert data according to schema
+         */
+        for(Map<String,String> auditLogMap : auditLogList) {
+            /**
+             * Instantiating the GenericRecord class
+             */
+            GenericRecord genericRecord = new GenericData.Record(schema);
 
-            for (Map.Entry<String,String> entry : mp.entrySet()) {
+            for (Map.Entry<String,String> entry : auditLogMap.entrySet()) {
                 String key = entry.getKey();
                 String value = entry.getValue().trim();
 
@@ -453,23 +424,23 @@ public class S3LogParser {
                 try {
                     if(longValues.contains(key)) {
                         if(value.equals("-")) {
-                            e1.put(key, null);
+                            genericRecord.put(key, null);
                         }
                         else {
-                            e1.put(key, Long.parseLong(value));
+                            genericRecord.put(key, Long.parseLong(value));
                         }
                     }
                     else {
-                        e1.put(key, value);
+                        genericRecord.put(key, value);
                     }
                 }
                 catch (Exception e) {
                     LOG.info("Exception : " + e);
-                    e1.put(key, null);
+                    genericRecord.put(key, null);
                 }
             }
-            e1.put("referrerMap", referrerHeaderList.get(count));
-            dataFileWriter.append(e1);
+            genericRecord.put("referrerMap", referrerHeaderList.get(count));
+            dataFileWriter.append(genericRecord);
             count += 1;
         }
         dataFileWriter.close();
@@ -477,22 +448,33 @@ public class S3LogParser {
         //LOG.info("data successfully serialized");
     }
 
+    /**
+     * parseWholeAuditLog method will parse every audit log in merged audit log file into key-value pairs
+     * and also converts the audit log data into csv file and avro file
+     * @param auditLogsFilePath this is the path of audit log file
+     * @return it returns a list of maps which contains key-value pairs of entire audit log including key-value pairs of referrer header
+     * @throws IOException
+     */
     List<HashMap<String, String>> parseWholeAuditLog(String auditLogsFilePath) throws IOException {
         List<HashMap<String, String>> entireAuditLogList = new ArrayList<>();
         List<HashMap<String, String>> referrerHeaderList = new ArrayList<>();
         List<HashMap<String, String>> auditLogList = new ArrayList<>();
-        File f = new File(auditLogsFilePath);
+        File auditLogFile = new File(auditLogsFilePath);
+        //LOG.info(auditLogFile.getAbsolutePath());
 
-        if(f.length() != 0) {
-            File file = new File("Json.json");
-            BufferedReader br = new BufferedReader(new FileReader(f));
+        if(auditLogFile.length() != 0 && auditLogFile.isFile()) {
+            File jsonFile = new File("Json.json");
+            BufferedReader bufferedReader = new BufferedReader(new FileReader(auditLogFile));
             String singleAuditLog;
-            ObjectMapper mapper = new ObjectMapper();
+            ObjectMapper objectMapper = new ObjectMapper();
 
             /**
              * reads single audit log from merged audit log file and parse it
              */
-            while ((singleAuditLog = br.readLine()) != null) {
+            while((singleAuditLog = bufferedReader.readLine()) != null) {
+                /**
+                 * parse audit log except referrer header
+                 */
                 Map<String, String> auditLogMap = parseAuditLog(singleAuditLog);
                 //LOG.info("auditLogMap : " + auditLogMap);
 
@@ -501,8 +483,11 @@ public class S3LogParser {
                     //LOG.info("Log didn't parsed : " + referrerHeader);
                     continue;
                 }
-                //LOG.info("getref : "+ referrerHeader);
+                //LOG.info("getreferrer : "+ referrerHeader);
 
+                /**
+                 * parse only referrer header
+                 */
                 Map<String, String> referrerHeaderMap = parseReferrerHeader(referrerHeader);
                 //LOG.info("referrerHeaderMap : " + referrerHeaderMap);
                 Map<String, String> entireAuditLogMap = new HashMap<>();
@@ -511,7 +496,9 @@ public class S3LogParser {
                 //LOG.info("entireAuditLogMap : " + entireAuditLogMap);
 
                 /**
-                 * adds every single map containing key-value pairs of single audit log into a list
+                 * adds every single map containing key-value pairs of single audit log into a list except referrer header key-value pairs
+                 * also adds every single map containing key-value pairs of referrer header into a list
+                 * and adds every single map containing key-value pairs of entire audit log into a list including referrer header key-value pairs
                  */
                 auditLogList.add((HashMap<String, String>) auditLogMap);
                 referrerHeaderList.add((HashMap<String, String>) referrerHeaderMap);
@@ -519,12 +506,15 @@ public class S3LogParser {
 
                 //LOG.info("Parsed one log..........");
             }
-            serialize(referrerHeaderList, auditLogList);
+            /**
+             * this method is used to convert the list of maps into avro file for querying using hive and spark
+             */
+            convertToAvroFile(referrerHeaderList, auditLogList);
 
             /**
              * adds list into json file which helps to convert key-value pairs into csv file
              */
-            mapper.writeValue(file, entireAuditLogList);
+            objectMapper.writeValue(jsonFile, entireAuditLogList);
 
             /**
              * this method is used to convert the obtained json file into csv file
