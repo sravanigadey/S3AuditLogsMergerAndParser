@@ -11,33 +11,31 @@ import java.util.Arrays;
 
 public class Merger {
 
-    Logger LOG = Logger.getLogger(AuditLogMergerParser.class);
+    private final Logger LOG = Logger.getLogger(Merger.class);
 
-    void mergeFiles(String auditLogsDirectoryPath) throws IOException {
+    public void mergeFiles(String auditLogsDirectoryPath) throws IOException {
         File auditLogFilesDirectory = new File(auditLogsDirectoryPath);
         String[] auditLogFileNames = auditLogFilesDirectory.list();
-        //LOG.info(Arrays.toString(auditLogFileNames));
+        LOG.info("Files to be merged : " + Arrays.toString(auditLogFileNames));
 
-        /**
-         * Read each audit log file present in directory and writes each and every audit log in it into a single audit log file
-         */
+        //Read each audit log file present in directory and writes each and every audit log in it into a single audit log file
         if(auditLogFileNames != null && auditLogFileNames.length != 0) {
             File auditLogFile = new File("AuditLogFile");
-            PrintWriter printWriter = new PrintWriter(auditLogFile);
-            for (String singleFileName : auditLogFileNames) {
-                //LOG.info("Reading from " + fileName);
-                File file = new File(auditLogFilesDirectory, singleFileName);
-                FileReader fileReader = new FileReader(file);
-                BufferedReader bufferedReader = new BufferedReader(fileReader);
-                //printWriter.println("Contents of file " + fileName);
-                String singleLine = bufferedReader.readLine();
-                while (singleLine != null) {
-                    printWriter.println(singleLine);
-                    singleLine = bufferedReader.readLine();
+            try (PrintWriter printWriter = new PrintWriter(auditLogFile)) {
+                for (String singleFileName : auditLogFileNames) {
+                    File file = new File(auditLogFilesDirectory, singleFileName);
+                    try (FileReader fileReader = new FileReader(file);
+                         BufferedReader bufferedReader = new BufferedReader(fileReader)) {
+                        String singleLine = bufferedReader.readLine();
+                        while (singleLine != null) {
+                            printWriter.println(singleLine);
+                            singleLine = bufferedReader.readLine();
+                        }
+                        printWriter.flush();
+                    }
+                    LOG.info("Successfully merged all files from the directory '" + auditLogFilesDirectory.getName() + "'");
                 }
-                printWriter.flush();
             }
-            //LOG.info("Completed reading from all files" + " in directory '" + dir.getName() + "'");
         }
     }
 }

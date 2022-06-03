@@ -12,29 +12,24 @@ import java.io.IOException;
  */
 public class AuditLogMergerParser {
 
-    static Logger LOG = Logger.getLogger(AuditLogMergerParser.class);
+    private static Logger LOG = Logger.getLogger(AuditLogMergerParser.class);
     
     public static void main(String args[]) throws IOException {
         long startTime = System.currentTimeMillis();
 
-        /**
-         * executes the code in Merger class to get a file containing all audit logs
-         */
+        //executes the code in Merger class to get a file containing all audit logs
         Merger merger = new Merger();
         String auditLogsDirectoryPath = "/Users/sravani.gadey/Downloads/del";
         merger.mergeFiles(auditLogsDirectoryPath);
 
-        /**
-         * executes the code in S3LogParser class, which will parse the audit logs
-         * and convert the key-value pairs into csv file and also avro file
-         */
+
+        //executes the code in S3LogParser class, which will parse the audit logs
+        //and convert the key-value pairs into csv file and also avro file
         S3LogParser s3LogParser = new S3LogParser();
         String auditLogsFilePath = "AuditLogFile";
         s3LogParser.parseWholeAuditLog(auditLogsFilePath);
 
-        /**
-         * calculates the time required for the whole process of merging, parsing and converting into csv file and avro file
-         */
+        //calculates the time required for the whole process of merging, parsing and converting into csv file and avro file
         long timeTaken = System.currentTimeMillis() - startTime;
         LOG.info("Time taken for merging, parsing and converting into file formats : " + timeTaken);
     }

@@ -16,7 +16,7 @@ import static org.junit.Assert.*;
 /**
  * S3LogParserTest will implement different tests on S3LogParser class methods
  */
-public class S3LogParserTest {
+public class TestS3LogParser {
 
     /**
      * A real log entry.
@@ -25,7 +25,7 @@ public class S3LogParserTest {
      * Splitting this up across lines has a tendency to break things, so
      * be careful making changes.
      */
-    String SAMPLE_LOG_ENTRY =
+    private final String SAMPLE_LOG_ENTRY =
             "183c9826b45486e485693808f38e2c4071004bf5dfd4c3ab210f0a21a4000000"
                     + " bucket-london"
                     + " [13/May/2021:11:26:06 +0000]"
@@ -66,25 +66,24 @@ public class S3LogParserTest {
      * Splitting this up across lines has a tendency to break things, so
      * be careful making changes.
      */
-    public static final String SAMPLE_REFERRER_ENTRY =
-            "op=op_create"
+    private final String SAMPLE_REFERRER_HEADER =
+            "\"https://audit.example.org/hadoop/1/op_create/e8ede3c7-8506-4a43-8268-fe8fcbb510a4-00000278/?"
+            + "op=op_create"
                     + "&p1=fork-0001/test/testParseBrokenCSVFile"
                     + "&pr=alice"
                     + "&ps=2eac5a04-2153-48db-896a-09bc9a2fd132"
                     + "&id=e8ede3c7-8506-4a43-8268-fe8fcbb510a4-00000278&t0=154"
                     + "&fs=e8ede3c7-8506-4a43-8268-fe8fcbb510a4&t1=156"
-                    + "&ts=1620905165700";
+                    + "&ts=1620905165700\"";
 
-    S3LogParser s3LogParser = new S3LogParser();
+    private final S3LogParser s3LogParser = new S3LogParser();
 
     /**
      * sample directories and files to test
      */
-    File sampleAuditLogFile = new File("sampleauditlogfile.txt");
-    File sampleAuditLogFileDiffDir = new File("/Users/sravani.gadey/Downloads/sampleauditlogfile.txt");
-    File emptyFile = new File("emptyfile.txt");
-    File emptyFileDiffDir = new File("/Users/sravani.gadey/Downloads/emptyfile.txt");
-    File emptyDirectory = new File("emptyDir");
+    private final File sampleAuditLogFile = new File("sampleauditlogfile.txt");
+    private final File emptyFile = new File("emptyfile.txt");
+    private final File emptyDirectory = new File("emptyDir");
 
     /**
      * creates the sample directories and files before each test
@@ -93,15 +92,10 @@ public class S3LogParserTest {
     @Before
     public void setUp() throws Exception {
         sampleAuditLogFile.createNewFile();
-        FileWriter fw = new FileWriter(sampleAuditLogFile);
-        fw.write(SAMPLE_LOG_ENTRY);
-        fw.close();
-        sampleAuditLogFileDiffDir.createNewFile();
-        FileWriter fw1 = new FileWriter(sampleAuditLogFileDiffDir);
-        fw1.write(SAMPLE_LOG_ENTRY);
-        fw1.close();
+        try (FileWriter fw = new FileWriter(sampleAuditLogFile)) {
+            fw.write(SAMPLE_LOG_ENTRY);
+        }
         emptyFile.createNewFile();
-        emptyFileDiffDir.createNewFile();
         emptyDirectory.mkdir();
     }
 
@@ -113,9 +107,24 @@ public class S3LogParserTest {
     @Test
     public void parseAuditLogTest() {
         Map<String, String> parseAuditLogResult = s3LogParser.parseAuditLog(SAMPLE_LOG_ENTRY);
-        //System.out.println(parseAuditLogResult);
-        assertEquals("bucket-london", parseAuditLogResult.get("bucket"));
-        assertEquals("109.157.171.174", parseAuditLogResult.get("remoteip"));
+        assertNotNull("the result of parseAuditLogResult should be not null", parseAuditLogResult);
+        //verifying the bucket from parsed audit log
+        assertEquals("the expected and actual results should be same","bucket-london", parseAuditLogResult.get("bucket"));
+        //verifying the remoteip from parsed audit log
+        assertEquals("the expected and actual results should be same","109.157.171.174", parseAuditLogResult.get("remoteip"));
+    }
+
+    /**
+     * parseAuditLogTest() will test parseAuditLog() method
+     * by passing empty string and null
+     * and checks if the result is empty
+     */
+    @Test
+    public void parseAuditLogTestEmptyAndNull() {
+        Map<String, String> parseAuditLogResultEmpty = s3LogParser.parseAuditLog("");
+        assertTrue("the returned list should be empty for this test", parseAuditLogResultEmpty.isEmpty());
+        Map<String, String> parseAuditLogResultNull = s3LogParser.parseAuditLog(null);
+        assertTrue("the returned list should be empty for this test", parseAuditLogResultEmpty.isEmpty());
     }
 
     /**
@@ -125,10 +134,25 @@ public class S3LogParserTest {
      */
     @Test
     public void parseReferrerHeaderTest() {
-        Map<String, String> parseReferrerHeaderResult = s3LogParser.parseReferrerHeader(SAMPLE_REFERRER_ENTRY);
-        //System.out.println(parseReferrerHeaderResult);
-        assertEquals("fork-0001/test/testParseBrokenCSVFile", parseReferrerHeaderResult.get("p1"));
-        assertEquals("alice", parseReferrerHeaderResult.get("pr"));
+        Map<String, String> parseReferrerHeaderResult = s3LogParser.parseReferrerHeader(SAMPLE_REFERRER_HEADER);
+        assertNotNull("the result of parseReferrerHeaderResult should be not null", parseReferrerHeaderResult);
+        //verifying the path 'p1' from parsed referrer header
+        assertEquals("the expected and actual results should be same","fork-0001/test/testParseBrokenCSVFile", parseReferrerHeaderResult.get("p1"));
+        //verifying the principal 'pr' from parsed referrer header
+        assertEquals("the expected and actual results should be same","alice", parseReferrerHeaderResult.get("pr"));
+    }
+
+    /**
+     * parseReferrerHeaderTest() will test parseReferrerHeader() method
+     * by passing empty string and null string
+     * and checks if the result is empty
+     */
+    @Test
+    public void parseReferrerHeaderTestEmptyAndNull() {
+        Map<String, String> parseReferrerHeaderResultEmpty = s3LogParser.parseReferrerHeader("");
+        assertTrue("the returned list should be empty for this test", parseReferrerHeaderResultEmpty.isEmpty());
+        Map<String, String> parseReferrerHeaderResultNull = s3LogParser.parseReferrerHeader(null);
+        assertTrue("the returned list should be empty for this test", parseReferrerHeaderResultNull.isEmpty());
     }
 
     /**
@@ -139,24 +163,25 @@ public class S3LogParserTest {
      */
     @Test
     public void parseWholeAuditLogTest() throws IOException {
+        //this is the list of maps of key-value pairs of parsed audit log
         List<HashMap<String, String>> parseWholeAuditLogTestResult = s3LogParser.parseWholeAuditLog(sampleAuditLogFile.getPath());
-        //System.out.println(parseWholeAuditLogTestResult);
-        assertEquals("op_create", parseWholeAuditLogTestResult.get(0).get("op"));
-        assertEquals("REST.PUT.OBJECT", parseWholeAuditLogTestResult.get(0).get("verb"));
-        assertEquals("\"https://audit.example.org/hadoop/1/op_create/e8ede3c7-8506-4a43-8268-fe8fcbb510a4-00000278/?op=op_create&p1=fork-0001/test/testParseBrokenCSVFile&pr=alice&ps=2eac5a04-2153-48db-896a-09bc9a2fd132&id=e8ede3c7-8506-4a43-8268-fe8fcbb510a4-00000278&t0=154&fs=e8ede3c7-8506-4a43-8268-fe8fcbb510a4&t1=156&ts=1620905165700\"", parseWholeAuditLogTestResult.get(0).get("referrer"));
+        assertNotNull("the result of parseWholeAuditLogTestResult should be not null", parseWholeAuditLogTestResult);
+        assertEquals("the expected and actual results should be same","op_create", parseWholeAuditLogTestResult.get(0).get("op"));
+        assertEquals("the expected and actual results should be same","REST.PUT.OBJECT", parseWholeAuditLogTestResult.get(0).get("verb"));
+        assertEquals("the expected and actual results should be same", SAMPLE_REFERRER_HEADER, parseWholeAuditLogTestResult.get(0).get("referrer"));
     }
 
     /**
      * parseWholeAuditLogEmptyFileTest() will test parseWholeAuditLog() method
-     * by passing an empty file which doesn't contains any data
+     * by passing an empty file which doesn't contain any data
      * and checks if return result is empty or not
      * @throws IOException
      */
     @Test
     public void parseWholeAuditLogEmptyFileTest() throws IOException {
         List<HashMap<String, String>> parseWholeAuditLogEmptyFileTestResult = s3LogParser.parseWholeAuditLog(emptyFile.getPath());
-        //System.out.println(parseWholeAuditLogTestEmptyResult.isEmpty());
-        assertTrue(parseWholeAuditLogEmptyFileTestResult.isEmpty());
+        assertNotNull("the result of parseWholeAuditLogEmptyFileTestResult should be not null", parseWholeAuditLogEmptyFileTestResult);
+        assertTrue("the returned list should be empty for this test", parseWholeAuditLogEmptyFileTestResult.isEmpty());
     }
 
     /**
@@ -168,8 +193,8 @@ public class S3LogParserTest {
     @Test
     public void parseWholeAuditLogEmptyDirTest() throws IOException {
         List<HashMap<String, String>> parseWholeAuditLogEmptyDirTestResult = s3LogParser.parseWholeAuditLog(emptyDirectory.getPath());
-        //System.out.println(parseWholeAuditLogTestEmptyDirResult);
-        assertTrue(parseWholeAuditLogEmptyDirTestResult.isEmpty());
+        assertNotNull("the result of parseWholeAuditLogEmptyDirTestResult should be not null", parseWholeAuditLogEmptyDirTestResult);
+        assertTrue("the returned list should be empty for this test", parseWholeAuditLogEmptyDirTestResult.isEmpty());
     }
 
     /**
@@ -179,9 +204,7 @@ public class S3LogParserTest {
     @After
     public void tearDown() throws Exception {
         sampleAuditLogFile.delete();
-        sampleAuditLogFileDiffDir.delete();
         emptyFile.delete();
-        emptyFileDiffDir.delete();
         emptyDirectory.delete();
     }
 }
